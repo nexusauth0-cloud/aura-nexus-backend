@@ -1,5 +1,9 @@
+import dotenv from 'dotenv';
+dotenv.config();
+
 import express from 'express';
 import cors from 'cors';
+import pool from './config/database';
 import authRoutes from './routes/auth';
 import conversationRoutes from './routes/conversations';
 import taskRoutes from './routes/tasks';
@@ -18,8 +22,13 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '10mb' }));
 
-app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', service: 'aura-nexus-api', version: '1.0.0' });
+app.get('/api/health', async (_req, res) => {
+  let dbStatus = 'disconnected';
+  try {
+    await pool.query('SELECT 1');
+    dbStatus = 'connected';
+  } catch {}
+  res.json({ status: 'ok', service: 'aura-nexus-api', version: '1.0.0', database: dbStatus });
 });
 
 app.use('/api/auth', authRoutes);
@@ -36,8 +45,20 @@ app.use((err: any, _req: express.Request, res: express.Response, _next: express.
   res.status(500).json({ error: 'Internal server error' });
 });
 
-app.listen(PORT, () => {
-  console.log(`\n  🚀 Aura Nexus API running on http://localhost:${PORT}\n`);
-});
+async function start() {
+  try {
+    await pool.query('SELECT 1');
+    console.log('  ✓ PostgreSQL connected');
+  } catch (err: any) {
+    console.log('  ⚠ PostgreSQL unavailable — API will start but DB routes will fail');
+    console.log(`    ${err.message}`);
+  }
+
+  app.listen(PORT, () => {
+    console.log(`\n  🚀 Aura Nexus API running on http://localhost:${PORT}\n`);
+  });
+}
+
+start();
 
 export default app;
